@@ -5,12 +5,15 @@ import { useAuth } from '@/contexts/AuthContext'
 import { BankAccount, CreditCard, CardCharge } from '@/types'
 import CardForm from '@/components/cards/CardForm'
 import CardChargeTable from '@/components/cards/CardChargeTable'
+import EditCardModal from '@/components/cards/EditCardModal'
 
 export default function CardsPage() {
   const { user } = useAuth()
   const [accounts, setAccounts] = useState<BankAccount[]>([])
   const [cards, setCards] = useState<CreditCard[]>([])
   const [charges, setCharges] = useState<CardCharge[]>([])
+  // 修正モーダルで編集中のカード（nullなら非表示）
+  const [editingCard, setEditingCard] = useState<CreditCard | null>(null)
 
   useEffect(() => {
     if (user) load()
@@ -59,18 +62,36 @@ export default function CardsPage() {
             {cards.map((card) => {
               const account = accounts.find((a) => a.id === card.bank_account_id)
               return (
-                <li key={card.id} className="flex justify-between text-sm border-b pb-2">
-                  <span className="font-medium">{card.name}</span>
-                  <span className="text-gray-500">
-                    毎月{card.billing_day}日引き落とし・{account?.name}・
-                    {card.warning_days}日前ワーニング
-                  </span>
+                <li key={card.id} className="flex justify-between items-center text-sm border-b pb-2">
+                  <div>
+                    <span className="font-medium">{card.name}</span>
+                    <span className="ml-3 text-gray-500">
+                      毎月{card.billing_day}日引き落とし・{account?.name}・
+                      {card.warning_days}日前ワーニング
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setEditingCard(card)}
+                    className="ml-4 text-xs text-blue-600 border border-blue-300 px-3 py-1 rounded-lg hover:bg-blue-50 transition-colors shrink-0"
+                  >
+                    修正
+                  </button>
                 </li>
               )
             })}
           </ul>
         )}
       </div>
+
+      {/* 修正モーダル */}
+      {editingCard && (
+        <EditCardModal
+          card={editingCard}
+          bankAccounts={accounts}
+          onClose={() => setEditingCard(null)}
+          onSuccess={load}
+        />
+      )}
 
       {/* カード引き落とし予定一覧 */}
       <div className="bg-white rounded-xl border p-6">
