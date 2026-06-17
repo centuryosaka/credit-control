@@ -11,6 +11,7 @@ interface Props {
 
 export default function EditCardModal({ card, bankAccounts, onClose, onSuccess }: Props) {
   const [name, setName] = useState(card.name)
+  const [closingDay, setClosingDay] = useState(card.closing_day != null ? String(card.closing_day) : '')
   const [billingDay, setBillingDay] = useState(String(card.billing_day))
   const [bankAccountId, setBankAccountId] = useState(card.bank_account_id)
   const [warningDays, setWarningDays] = useState(String(card.warning_days))
@@ -35,6 +36,7 @@ export default function EditCardModal({ card, bankAccounts, onClose, onSuccess }
       .from('credit_cards')
       .update({
         name,
+        closing_day: closingDay !== '' ? Number(closingDay) : null,
         billing_day: Number(billingDay),
         bank_account_id: bankAccountId,
         warning_days: Number(warningDays),
@@ -80,6 +82,21 @@ export default function EditCardModal({ card, bankAccounts, onClose, onSuccess }
               onChange={(e) => setName(e.target.value)}
               className="border rounded-lg px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-400"
               required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">
+              締め日（日）
+              <span className="ml-1 text-xs text-gray-400 font-normal">任意 ― 例：15日締めなら「15」</span>
+            </label>
+            <input
+              type="number"
+              value={closingDay}
+              onChange={(e) => setClosingDay(e.target.value)}
+              className="border rounded-lg px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-400"
+              placeholder="未設定の場合は空欄"
+              min={1}
+              max={31}
             />
           </div>
           <div>

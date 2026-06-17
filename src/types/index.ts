@@ -28,7 +28,8 @@ export interface CreditCard {
   id: string
   user_id: string
   name: string
-  billing_day: number
+  closing_day: number | null  // 締め日（例：15日締め）。未設定の場合は null
+  billing_day: number         // 引き落とし日（例：翌月10日払い）
   bank_account_id: string
   warning_days: number
   created_at: string
@@ -55,8 +56,13 @@ export interface DashboardSummary {
   isShortfall: boolean
   shortfallAmount: number
   upcomingWarnings: UpcomingWarning[]
-  // 口座に紐づく各カードの次回引き落とし日
-  billingDates: { cardName: string; date: Date }[]
+  // 口座に紐づく各カードの引き落とし情報（利用期間・引落日）
+  billingDates: {
+    cardName: string
+    billingDate: Date
+    periodStart: Date | null  // 利用期間の開始日（締め日設定時のみ）
+    periodEnd: Date | null    // 利用期間の終了日＝締め日（締め日設定時のみ）
+  }[]
 }
 
 // 引き落とし直前のワーニング情報

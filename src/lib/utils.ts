@@ -28,6 +28,33 @@ export function getDaysUntil(target: Date, from = new Date()): number {
   return Math.ceil(diff / (1000 * 60 * 60 * 24))
 }
 
+// 締め日が設定されているカードの利用期間（開始日・終了日）を計算
+// 例：15締め→翌月10日払い の場合、7/10 引落 → 5/16〜6/15 利用分
+export function getBillingPeriod(
+  card: CreditCard,
+  referenceDate = new Date(),
+): { periodStart: Date; periodEnd: Date; billingDate: Date } | null {
+  if (card.closing_day == null) return null
+
+  const billingDate = getBillingDate(card, referenceDate)
+
+  // 締め月 = 引き落とし月の前月
+  const billingYear = billingDate.getFullYear()
+  const billingMonth = billingDate.getMonth() // 0-indexed
+  const closingYear = billingMonth === 0 ? billingYear - 1 : billingYear
+  const closingMonth = billingMonth === 0 ? 11 : billingMonth - 1
+
+  // 利用期間の終了日（締め日）
+  const periodEnd = new Date(closingYear, closingMonth, card.closing_day)
+
+  // 利用期間の開始日（前月締め日の翌日）
+  const prevYear = closingMonth === 0 ? closingYear - 1 : closingYear
+  const prevMonth = closingMonth === 0 ? 11 : closingMonth - 1
+  const periodStart = new Date(prevYear, prevMonth, card.closing_day + 1)
+
+  return { periodStart, periodEnd, billingDate }
+}
+
 // ワーニング対象カードと引き落とし情報を抽出
 export function getUpcomingWarnings(
   cards: CreditCard[],

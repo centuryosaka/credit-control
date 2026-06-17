@@ -10,6 +10,7 @@ interface Props {
 
 export default function CardForm({ bankAccounts, userId, onSuccess }: Props) {
   const [name, setName] = useState('')
+  const [closingDay, setClosingDay] = useState('')   // 締め日（空欄可）
   const [billingDay, setBillingDay] = useState('')
   const [bankAccountId, setBankAccountId] = useState(bankAccounts[0]?.id ?? '')
   const [warningDays, setWarningDays] = useState('3')
@@ -24,6 +25,7 @@ export default function CardForm({ bankAccounts, userId, onSuccess }: Props) {
     const { error } = await supabase.from('credit_cards').insert({
       user_id: userId,
       name,
+      closing_day: closingDay !== '' ? Number(closingDay) : null,
       billing_day: Number(billingDay),
       bank_account_id: bankAccountId,
       warning_days: Number(warningDays),
@@ -35,6 +37,7 @@ export default function CardForm({ bankAccounts, userId, onSuccess }: Props) {
       return
     }
     setName('')
+    setClosingDay('')
     setBillingDay('')
     onSuccess()
   }
@@ -50,6 +53,21 @@ export default function CardForm({ bankAccounts, userId, onSuccess }: Props) {
           className="border rounded-lg px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-400"
           placeholder="例：三井住友カード"
           required
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium mb-1">
+          締め日（日）
+          <span className="ml-1 text-xs text-gray-400 font-normal">任意 ― 例：15日締めなら「15」</span>
+        </label>
+        <input
+          type="number"
+          value={closingDay}
+          onChange={(e) => setClosingDay(e.target.value)}
+          className="border rounded-lg px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-400"
+          placeholder="未設定の場合は空欄"
+          min={1}
+          max={31}
         />
       </div>
       <div>

@@ -12,14 +12,13 @@ export default function BalanceSummary({ summary }: Props) {
     year: 'numeric', month: 'long', day: 'numeric', weekday: 'short',
   })
 
-  // 引き落とし日を "MM/DD（カード名）" 形式で列挙
-  const billingLabel = billingDates.length > 0
-    ? billingDates
-        .map(({ cardName, date }) =>
-          `${date.getMonth() + 1}/${date.getDate()}（${cardName}）`
-        )
-        .join('　')
-    : null
+  // カードごとに "MM/DD〜MM/DD利用分 → MM/DD引落（カード名）" 形式で表示
+  const md = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`
+  const billingItems = billingDates.map(({ cardName, billingDate, periodStart, periodEnd }) =>
+    periodStart && periodEnd
+      ? `${md(periodStart)}〜${md(periodEnd)}利用分 → ${md(billingDate)}引落（${cardName}）`
+      : `${md(billingDate)}引落（${cardName}）`
+  )
 
   return (
     <div
@@ -39,14 +38,20 @@ export default function BalanceSummary({ summary }: Props) {
           </span>
           <span className="font-semibold text-gray-800">{formatCurrency(bankAccount.balance)}</span>
         </div>
-        <div className="flex justify-between py-3 border-b border-gray-200">
-          <span>
-            カード引き落とし予定額（合計）
-            {billingLabel && (
-              <span className="ml-2 text-xs text-gray-400">引落日：{billingLabel}</span>
-            )}
-          </span>
-          <span className="font-semibold text-gray-800">－{formatCurrency(totalCharges)}</span>
+        <div className="py-3 border-b border-gray-200">
+          <div className="flex justify-between">
+            <span>カード引き落とし予定額（合計）</span>
+            <span className="font-semibold text-gray-800">－{formatCurrency(totalCharges)}</span>
+          </div>
+          {billingItems.length > 0 && (
+            <ul className="mt-1 space-y-0.5">
+              {billingItems.map((item, i) => (
+                <li key={i} className="text-xs text-gray-400 pl-2 before:content-['・'] before:mr-0.5">
+                  {item}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
         <div className="flex justify-between py-3 text-base">
           <span className="font-bold">引落後残高</span>

@@ -66,8 +66,10 @@ export default function CardsPage() {
                   <div>
                     <span className="font-medium">{card.name}</span>
                     <span className="ml-3 text-gray-500">
-                      毎月{card.billing_day}日引き落とし・{account?.name}・
-                      {card.warning_days}日前ワーニング
+                      {card.closing_day != null
+                        ? `毎月${card.closing_day}日締め→${card.billing_day}日払い`
+                        : `毎月${card.billing_day}日引き落とし`}
+                      ・{account?.name}・{card.warning_days}日前ワーニング
                     </span>
                   </div>
                   <button
