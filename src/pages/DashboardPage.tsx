@@ -3,9 +3,7 @@ import { Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { BankAccount, CreditCard, CardCharge } from '@/types'
-import { getUpcomingWarnings, getBillingDate, getBillingPeriod } from '@/lib/utils'
-import BalanceSummary from '@/components/dashboard/BalanceSummary'
-import WarningBanner from '@/components/dashboard/WarningBanner'
+import TimelineDashboard from '@/components/dashboard/TimelineDashboard'
 
 export default function DashboardPage() {
   const { user } = useAuth()
@@ -23,7 +21,6 @@ export default function DashboardPage() {
     const [{ data: a }, { data: c }, { data: ch }] = await Promise.all([
       supabase.from('bank_accounts').select('*').order('created_at'),
       supabase.from('credit_cards').select('*'),
-      // 未引き落とし分のみ取得してワーニング・残高計算に使用
       supabase.from('card_charges').select('*').eq('is_debited', false),
     ])
     setAccounts((a ?? []) as BankAccount[])
@@ -47,46 +44,16 @@ export default function DashboardPage() {
     )
   }
 
-  // 口座ごとにサマリーを計算
-  const summaries = accounts.map((account) => {
-    const relatedCards = cards.filter((c) => c.bank_account_id === account.id)
-    const relatedCharges = charges.filter((ch) =>
-      relatedCards.some((c) => c.id === ch.credit_card_id),
-    )
-    const totalCharges = relatedCharges.reduce((sum, c) => sum + c.amount, 0)
-    const balance = account.balance - totalCharges
-
-    return {
-      bankAccount: account,
-      totalCharges,
-      balance,
-      isShortfall: balance < 0,
-      shortfallAmount: balance < 0 ? Math.abs(balance) : 0,
-      upcomingWarnings: getUpcomingWarnings(relatedCards, relatedCharges),
-      billingDates: relatedCards.map((card) => {
-        const period = getBillingPeriod(card)
-        return {
-          cardName: card.name,
-          billingDate: getBillingDate(card),
-          periodStart: period?.periodStart ?? null,
-          periodEnd: period?.periodEnd ?? null,
-        }
-      }),
-    }
-  })
-
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-800">ダッシュボード</h1>
-      {summaries.map((summary) => (
-        <div key={summary.bankAccount.id} className="space-y-4">
-          <BalanceSummary summary={summary} />
-          <WarningBanner
-            warnings={summary.upcomingWarnings}
-            isShortfall={summary.isShortfall}
-            shortfallAmount={summary.shortfallAmount}
-          />
-        </div>
+      {accounts.map(account => (
+        <TimelineDashboard
+          key={account.id}
+          account={account}
+          cards={cards}
+          charges={charges}
+        />
       ))}
     </div>
   )
