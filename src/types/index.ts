@@ -55,6 +55,8 @@ export interface DashboardSummary {
   isShortfall: boolean
   shortfallAmount: number
   upcomingWarnings: UpcomingWarning[]
+  // 口座に紐づく各カードの次回引き落とし日
+  billingDates: { cardName: string; date: Date }[]
 }
 
 // 引き落とし直前のワーニング情報

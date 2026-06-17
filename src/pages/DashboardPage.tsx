@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { BankAccount, CreditCard, CardCharge } from '@/types'
-import { getUpcomingWarnings } from '@/lib/utils'
+import { getUpcomingWarnings, getBillingDate } from '@/lib/utils'
 import BalanceSummary from '@/components/dashboard/BalanceSummary'
 import WarningBanner from '@/components/dashboard/WarningBanner'
 
@@ -63,6 +63,10 @@ export default function DashboardPage() {
       isShortfall: balance < 0,
       shortfallAmount: balance < 0 ? Math.abs(balance) : 0,
       upcomingWarnings: getUpcomingWarnings(relatedCards, relatedCharges),
+      billingDates: relatedCards.map((card) => ({
+        cardName: card.name,
+        date: getBillingDate(card),
+      })),
     }
   })
 
