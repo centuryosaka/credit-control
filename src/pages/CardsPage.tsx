@@ -12,8 +12,8 @@ export default function CardsPage() {
   const [accounts, setAccounts] = useState<BankAccount[]>([])
   const [cards, setCards] = useState<CreditCard[]>([])
   const [charges, setCharges] = useState<CardCharge[]>([])
-  // 修正モーダルで編集中のカード（nullなら非表示）
   const [editingCard, setEditingCard] = useState<CreditCard | null>(null)
+  const [showAddModal, setShowAddModal] = useState(false)
 
   useEffect(() => {
     if (user) load()
@@ -30,31 +30,32 @@ export default function CardsPage() {
     setCharges((ch ?? []) as CardCharge[])
   }
 
+  function handleAddSuccess() {
+    setShowAddModal(false)
+    load()
+  }
+
   return (
     <div className="space-y-8">
       <h1 className="text-2xl font-bold text-gray-800">カード管理</h1>
 
-      {/* カード登録フォーム */}
+      {/* カード引き落とし予定一覧 */}
       <div className="bg-white rounded-xl border p-6">
-        <h2 className="text-lg font-semibold mb-4">カードを登録する</h2>
-        {accounts.length === 0 ? (
-          <p className="text-gray-500 text-sm">
-            先に
-            <Link to="/bank" className="text-blue-600 underline mx-1">
-              銀行口座
-            </Link>
-            を登録してください。
-          </p>
-        ) : (
-          user && (
-            <CardForm bankAccounts={accounts} userId={user.id} onSuccess={load} />
-          )
-        )}
+        <h2 className="text-lg font-semibold mb-4">カード引き落とし予定一覧</h2>
+        <CardChargeTable cards={cards} charges={charges} />
       </div>
 
-      {/* 登録済みカード一覧 */}
+      {/* 登録済みカード */}
       <div className="bg-white rounded-xl border p-6">
-        <h2 className="text-lg font-semibold mb-4">登録済みカード</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold">登録済みカード</h2>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="bg-blue-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            ＋ カードを登録
+          </button>
+        </div>
         {cards.length === 0 ? (
           <p className="text-gray-400 text-sm">カードが登録されていません。</p>
         ) : (
@@ -85,7 +86,43 @@ export default function CardsPage() {
         )}
       </div>
 
-      {/* 修正モーダル */}
+      {/* カード登録モーダル */}
+      {showAddModal && (
+        <div
+          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
+          onClick={() => setShowAddModal(false)}
+        >
+          <div
+            className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold">カードを登録する</h2>
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+            {accounts.length === 0 ? (
+              <p className="text-gray-500 text-sm">
+                先に
+                <Link to="/bank" className="text-blue-600 underline mx-1">
+                  銀行口座
+                </Link>
+                を登録してください。
+              </p>
+            ) : (
+              user && (
+                <CardForm bankAccounts={accounts} userId={user.id} onSuccess={handleAddSuccess} />
+              )
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* カード修正モーダル */}
       {editingCard && (
         <EditCardModal
           card={editingCard}
@@ -94,12 +131,6 @@ export default function CardsPage() {
           onSuccess={load}
         />
       )}
-
-      {/* カード引き落とし予定一覧 */}
-      <div className="bg-white rounded-xl border p-6">
-        <h2 className="text-lg font-semibold mb-4">カード引き落とし予定一覧</h2>
-        <CardChargeTable cards={cards} charges={charges} />
-      </div>
     </div>
   )
 }
