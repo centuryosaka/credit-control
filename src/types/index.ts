@@ -35,7 +35,18 @@ export interface CreditCard {
   created_at: string
 }
 
-// カード引き落とし予定額
+// カード使用額の個別明細
+export interface CardChargeItem {
+  id: string
+  user_id: string
+  credit_card_id: string
+  billing_year_month: string
+  description: string
+  amount: number
+  created_at: string
+}
+
+// カード引き落とし予定額（明細の合計を保持）
 export interface CardCharge {
   id: string
   user_id: string

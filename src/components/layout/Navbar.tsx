@@ -5,7 +5,7 @@ const NAV_LINKS = [
   { href: '/', label: 'ダッシュボード' },
   { href: '/bank', label: '銀行口座' },
   { href: '/cards', label: 'カード管理' },
-  { href: '/import', label: 'Excelインポート' },
+  { href: '/charges', label: '使用額入力' },
 ]
 
 export default function Navbar() {

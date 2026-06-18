@@ -6,7 +6,7 @@ import LoginPage from '@/pages/LoginPage'
 import DashboardPage from '@/pages/DashboardPage'
 import BankPage from '@/pages/BankPage'
 import CardsPage from '@/pages/CardsPage'
-import ImportPage from '@/pages/ImportPage'
+import ChargesPage from '@/pages/ChargesPage'
 
 export default function App() {
   return (
@@ -28,7 +28,7 @@ export default function App() {
             <Route index element={<DashboardPage />} />
             <Route path="bank" element={<BankPage />} />
             <Route path="cards" element={<CardsPage />} />
-            <Route path="import" element={<ImportPage />} />
+            <Route path="charges" element={<ChargesPage />} />
           </Route>
 
           {/* 未定義パスはダッシュボードへ */}
