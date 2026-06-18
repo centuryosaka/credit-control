@@ -4,24 +4,19 @@ import { useAuth } from '@/contexts/AuthContext'
 import { CreditCard, CardChargeItem } from '@/types'
 import { formatCurrency } from '@/lib/utils'
 
-function generateUsageMonthOptions() {
-  const options: { value: string; label: string }[] = []
+function getMonthByOffset(offsetFromToday: number): { value: string; label: string } {
   const today = new Date()
-  for (let i = -3; i <= 6; i++) {
-    const d = new Date(today.getFullYear(), today.getMonth() + i, 1)
-    const year = d.getFullYear()
-    const month = d.getMonth() + 1
-    options.push({
-      value: `${year}-${String(month).padStart(2, '0')}`,
-      label: `${year}年${month}月`,
-    })
+  const d = new Date(today.getFullYear(), today.getMonth() + offsetFromToday, 1)
+  const year = d.getFullYear()
+  const month = d.getMonth() + 1
+  return {
+    value: `${year}-${String(month).padStart(2, '0')}`,
+    label: `${year}年${month}月`,
   }
-  return options
 }
 
 function usageToBillingYearMonth(usageYearMonth: string): string {
   const [y, m] = usageYearMonth.split('-').map(Number)
-  // new Date(y, m, 1): month引数はゼロ始まりなので m（1始まり）を渡すと翌月になる
   const d = new Date(y, m, 1)
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
@@ -46,12 +41,19 @@ function getPeriodLabel(card: CreditCard, billingYearMonth: string): string {
   return `${fmt(periodStart)}〜${fmt(periodEnd)}利用分 → ${year}年${month}月${card.billing_day}日払い`
 }
 
+// 月ウィンドウの中心オフセット範囲：-2〜5（左右に1ずつ広がり -3〜+6 の範囲をカバー）
+const WINDOW_MIN = -2
+const WINDOW_MAX = 5
+
 export default function ChargesPage() {
   const { user } = useAuth()
   const [cards, setCards] = useState<CreditCard[]>([])
   const [items, setItems] = useState<CardChargeItem[]>([])
   const [selectedCardId, setSelectedCardId] = useState('')
-  const [selectedUsageYearMonth, setSelectedUsageYearMonth] = useState('')
+  const [selectedUsageYearMonth, setSelectedUsageYearMonth] = useState(
+    () => getMonthByOffset(0).value,
+  )
+  const [windowOffset, setWindowOffset] = useState(0)
   const [newDescription, setNewDescription] = useState('')
   const [newAmount, setNewAmount] = useState('')
   const [adding, setAdding] = useState(false)
@@ -60,7 +62,11 @@ export default function ChargesPage() {
   const [editAmount, setEditAmount] = useState('')
   const [error, setError] = useState<string | null>(null)
 
-  const monthOptions = useMemo(() => generateUsageMonthOptions(), [])
+  // ウィンドウに表示する3か月（中心 ± 1）
+  const visibleMonths = useMemo(
+    () => [-1, 0, 1].map(i => getMonthByOffset(windowOffset + i)),
+    [windowOffset],
+  )
 
   const billingYearMonth = useMemo(
     () => (selectedUsageYearMonth ? usageToBillingYearMonth(selectedUsageYearMonth) : ''),
@@ -68,10 +74,6 @@ export default function ChargesPage() {
   )
 
   useEffect(() => {
-    const today = new Date()
-    setSelectedUsageYearMonth(
-      `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`,
-    )
     if (user) loadCards()
   }, [user])
 
@@ -187,9 +189,16 @@ export default function ChargesPage() {
     setEditAmount(String(item.amount))
   }
 
+  function shiftWindow(direction: -1 | 1) {
+    const next = windowOffset + direction
+    setWindowOffset(next)
+    // スライドした方向の端の月を選択
+    const newCenter = getMonthByOffset(next)
+    setSelectedUsageYearMonth(newCenter.value)
+  }
+
   const total = items.reduce((sum, i) => sum + i.amount, 0)
   const selectedCard = cards.find(c => c.id === selectedCardId)
-  const selectedUsageMonthLabel = monthOptions.find(o => o.value === selectedUsageYearMonth)?.label ?? ''
 
   return (
     <div className="space-y-6">
@@ -203,7 +212,8 @@ export default function ChargesPage() {
         <>
           {/* カード・月選択 */}
           <div className="bg-white rounded-xl border p-6">
-            <div className="flex flex-wrap gap-4">
+            <div className="flex flex-wrap gap-6 items-start">
+              {/* カード選択 */}
               <div>
                 <label className="block text-sm font-medium mb-1 text-gray-600">カード</label>
                 <select
@@ -216,19 +226,42 @@ export default function ChargesPage() {
                   ))}
                 </select>
               </div>
+
+              {/* 月選択スライダー */}
               <div>
-                <label className="block text-sm font-medium mb-1 text-gray-600">利用月</label>
-                <select
-                  value={selectedUsageYearMonth}
-                  onChange={e => setSelectedUsageYearMonth(e.target.value)}
-                  className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                >
-                  {monthOptions.map(o => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
+                <label className="block text-sm font-medium mb-2 text-gray-600">利用月</label>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => shiftWindow(-1)}
+                    disabled={windowOffset <= WINDOW_MIN}
+                    className="w-8 h-9 flex items-center justify-center rounded-lg border text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  >
+                    ‹
+                  </button>
+                  {visibleMonths.map(m => (
+                    <button
+                      key={m.value}
+                      onClick={() => setSelectedUsageYearMonth(m.value)}
+                      className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors whitespace-nowrap ${
+                        m.value === selectedUsageYearMonth
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'text-gray-600 hover:bg-gray-100 border-gray-300'
+                      }`}
+                    >
+                      {m.label}
+                    </button>
                   ))}
-                </select>
+                  <button
+                    onClick={() => shiftWindow(1)}
+                    disabled={windowOffset >= WINDOW_MAX}
+                    className="w-8 h-9 flex items-center justify-center rounded-lg border text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  >
+                    ›
+                  </button>
+                </div>
               </div>
             </div>
+
             {selectedCard && billingYearMonth && (
               <p className="mt-3 text-xs text-gray-400">
                 {getPeriodLabel(selectedCard, billingYearMonth)}
@@ -239,7 +272,7 @@ export default function ChargesPage() {
           {/* 明細一覧 + 入力フォーム */}
           <div className="bg-white rounded-xl border p-6">
             <h2 className="text-base font-semibold mb-4 text-gray-700">
-              {selectedCard?.name}　／　{selectedUsageMonthLabel} 利用明細
+              {selectedCard?.name}　／　{visibleMonths.find(m => m.value === selectedUsageYearMonth)?.label ?? selectedUsageYearMonth} 利用明細
             </h2>
 
             {items.length > 0 ? (
