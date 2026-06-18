@@ -41,7 +41,6 @@ function getPeriodLabel(card: CreditCard, billingYearMonth: string): string {
   return `${fmt(periodStart)}〜${fmt(periodEnd)}利用分 → ${year}年${month}月${card.billing_day}日払い`
 }
 
-// 月ウィンドウの中心オフセット範囲：-2〜5（左右に1ずつ広がり -3〜+6 の範囲をカバー）
 const WINDOW_MIN = -2
 const WINDOW_MAX = 5
 
@@ -54,6 +53,7 @@ export default function ChargesPage() {
     () => getMonthByOffset(0).value,
   )
   const [windowOffset, setWindowOffset] = useState(0)
+  const [monthTotals, setMonthTotals] = useState<Record<string, number>>({})
   const [newDescription, setNewDescription] = useState('')
   const [newAmount, setNewAmount] = useState('')
   const [adding, setAdding] = useState(false)
@@ -62,7 +62,6 @@ export default function ChargesPage() {
   const [editAmount, setEditAmount] = useState('')
   const [error, setError] = useState<string | null>(null)
 
-  // ウィンドウに表示する3か月（中心 ± 1）
   const visibleMonths = useMemo(
     () => [-1, 0, 1].map(i => getMonthByOffset(windowOffset + i)),
     [windowOffset],
@@ -81,6 +80,11 @@ export default function ChargesPage() {
     if (selectedCardId && billingYearMonth) loadItems()
   }, [selectedCardId, billingYearMonth])
 
+  // カードまたはウィンドウが変わったら3か月分の合計を取得
+  useEffect(() => {
+    if (selectedCardId) loadMonthTotals()
+  }, [selectedCardId, windowOffset])
+
   async function loadCards() {
     const { data } = await supabase.from('credit_cards').select('*').order('created_at')
     const loaded = (data ?? []) as CreditCard[]
@@ -96,6 +100,23 @@ export default function ChargesPage() {
       .eq('billing_year_month', billingYearMonth)
       .order('created_at')
     setItems((data ?? []) as CardChargeItem[])
+  }
+
+  async function loadMonthTotals() {
+    const billingMonths = visibleMonths.map(m => usageToBillingYearMonth(m.value))
+    const { data } = await supabase
+      .from('card_charges')
+      .select('billing_year_month, amount')
+      .eq('credit_card_id', selectedCardId)
+      .in('billing_year_month', billingMonths)
+
+    const totals: Record<string, number> = {}
+    for (const m of visibleMonths) {
+      const bym = usageToBillingYearMonth(m.value)
+      const found = (data ?? []).find(c => c.billing_year_month === bym)
+      totals[m.value] = found?.amount ?? 0
+    }
+    setMonthTotals(totals)
   }
 
   async function syncCardCharges(creditCardId: string, bym: string, latestItems: CardChargeItem[]) {
@@ -121,6 +142,10 @@ export default function ChargesPage() {
         is_debited: false,
       })
     }
+  }
+
+  function updateTotalInButtons(usageYearMonth: string, total: number) {
+    setMonthTotals(prev => ({ ...prev, [usageYearMonth]: total }))
   }
 
   async function handleAdd(e: React.FormEvent) {
@@ -149,7 +174,9 @@ export default function ChargesPage() {
 
     const updated = [...items, data as CardChargeItem]
     setItems(updated)
+    const newTotal = updated.reduce((sum, i) => sum + i.amount, 0)
     await syncCardCharges(selectedCardId, billingYearMonth, updated)
+    updateTotalInButtons(selectedUsageYearMonth, newTotal)
     setNewDescription('')
     setNewAmount('')
   }
@@ -172,7 +199,9 @@ export default function ChargesPage() {
 
     const updated = items.map(i => (i.id === itemId ? (data as CardChargeItem) : i))
     setItems(updated)
+    const newTotal = updated.reduce((sum, i) => sum + i.amount, 0)
     await syncCardCharges(selectedCardId, billingYearMonth, updated)
+    updateTotalInButtons(selectedUsageYearMonth, newTotal)
     setEditingItemId(null)
   }
 
@@ -180,7 +209,9 @@ export default function ChargesPage() {
     await supabase.from('card_charge_items').delete().eq('id', itemId)
     const updated = items.filter(i => i.id !== itemId)
     setItems(updated)
+    const newTotal = updated.reduce((sum, i) => sum + i.amount, 0)
     await syncCardCharges(selectedCardId, billingYearMonth, updated)
+    updateTotalInButtons(selectedUsageYearMonth, newTotal)
   }
 
   function startEdit(item: CardChargeItem) {
@@ -192,13 +223,13 @@ export default function ChargesPage() {
   function shiftWindow(direction: -1 | 1) {
     const next = windowOffset + direction
     setWindowOffset(next)
-    // スライドした方向の端の月を選択
-    const newCenter = getMonthByOffset(next)
-    setSelectedUsageYearMonth(newCenter.value)
+    setSelectedUsageYearMonth(getMonthByOffset(next).value)
   }
 
   const total = items.reduce((sum, i) => sum + i.amount, 0)
   const selectedCard = cards.find(c => c.id === selectedCardId)
+  const selectedMonthLabel =
+    visibleMonths.find(m => m.value === selectedUsageYearMonth)?.label ?? selectedUsageYearMonth
 
   return (
     <div className="space-y-6">
@@ -234,27 +265,34 @@ export default function ChargesPage() {
                   <button
                     onClick={() => shiftWindow(-1)}
                     disabled={windowOffset <= WINDOW_MIN}
-                    className="w-8 h-9 flex items-center justify-center rounded-lg border text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    className="w-8 h-14 flex items-center justify-center rounded-lg border text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-lg"
                   >
                     ‹
                   </button>
-                  {visibleMonths.map(m => (
-                    <button
-                      key={m.value}
-                      onClick={() => setSelectedUsageYearMonth(m.value)}
-                      className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors whitespace-nowrap ${
-                        m.value === selectedUsageYearMonth
-                          ? 'bg-blue-600 text-white border-blue-600'
-                          : 'text-gray-600 hover:bg-gray-100 border-gray-300'
-                      }`}
-                    >
-                      {m.label}
-                    </button>
-                  ))}
+                  {visibleMonths.map(m => {
+                    const isSelected = m.value === selectedUsageYearMonth
+                    const total = monthTotals[m.value] ?? 0
+                    return (
+                      <button
+                        key={m.value}
+                        onClick={() => setSelectedUsageYearMonth(m.value)}
+                        className={`flex flex-col items-center px-4 py-2 rounded-lg border text-sm font-medium transition-colors whitespace-nowrap min-w-[100px] h-14 justify-center ${
+                          isSelected
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'text-gray-600 hover:bg-gray-100 border-gray-300'
+                        }`}
+                      >
+                        <span>{m.label}</span>
+                        <span className={`text-xs mt-0.5 font-normal ${isSelected ? 'text-blue-100' : 'text-gray-400'}`}>
+                          {total > 0 ? formatCurrency(total) : '―'}
+                        </span>
+                      </button>
+                    )
+                  })}
                   <button
                     onClick={() => shiftWindow(1)}
                     disabled={windowOffset >= WINDOW_MAX}
-                    className="w-8 h-9 flex items-center justify-center rounded-lg border text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    className="w-8 h-14 flex items-center justify-center rounded-lg border text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-lg"
                   >
                     ›
                   </button>
@@ -272,7 +310,7 @@ export default function ChargesPage() {
           {/* 明細一覧 + 入力フォーム */}
           <div className="bg-white rounded-xl border p-6">
             <h2 className="text-base font-semibold mb-4 text-gray-700">
-              {selectedCard?.name}　／　{visibleMonths.find(m => m.value === selectedUsageYearMonth)?.label ?? selectedUsageYearMonth} 利用明細
+              {selectedCard?.name}　／　{selectedMonthLabel} 利用明細
             </h2>
 
             {items.length > 0 ? (
