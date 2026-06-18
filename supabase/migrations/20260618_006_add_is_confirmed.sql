@@ -1,0 +1,2 @@
+ALTER TABLE card_charge_items
+  ADD COLUMN IF NOT EXISTS is_confirmed BOOLEAN NOT NULL DEFAULT true;

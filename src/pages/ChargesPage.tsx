@@ -72,6 +72,9 @@ export default function ChargesPage() {
     [selectedUsageYearMonth],
   )
 
+  // チェック済み明細の合計（card_charges に連携する値）
+  const confirmedTotal = items.filter(i => i.is_confirmed).reduce((sum, i) => sum + i.amount, 0)
+
   useEffect(() => {
     if (user) loadCards()
   }, [user])
@@ -80,7 +83,6 @@ export default function ChargesPage() {
     if (selectedCardId && billingYearMonth) loadItems()
   }, [selectedCardId, billingYearMonth])
 
-  // カードまたはウィンドウが変わったら3か月分の合計を取得
   useEffect(() => {
     if (selectedCardId) loadMonthTotals()
   }, [selectedCardId, windowOffset])
@@ -119,8 +121,9 @@ export default function ChargesPage() {
     setMonthTotals(totals)
   }
 
+  // チェック済み合計のみ card_charges に反映
   async function syncCardCharges(creditCardId: string, bym: string, latestItems: CardChargeItem[]) {
-    const total = latestItems.reduce((sum, i) => sum + i.amount, 0)
+    const total = latestItems.filter(i => i.is_confirmed).reduce((sum, i) => sum + i.amount, 0)
 
     const { data: existing } = await supabase
       .from('card_charges')
@@ -144,8 +147,28 @@ export default function ChargesPage() {
     }
   }
 
-  function updateTotalInButtons(usageYearMonth: string, total: number) {
-    setMonthTotals(prev => ({ ...prev, [usageYearMonth]: total }))
+  function refreshButtonTotal(latestItems: CardChargeItem[]) {
+    const total = latestItems.filter(i => i.is_confirmed).reduce((sum, i) => sum + i.amount, 0)
+    setMonthTotals(prev => ({ ...prev, [selectedUsageYearMonth]: total }))
+  }
+
+  async function handleToggleConfirmed(itemId: string) {
+    const item = items.find(i => i.id === itemId)
+    if (!item) return
+
+    const { data, error: err } = await supabase
+      .from('card_charge_items')
+      .update({ is_confirmed: !item.is_confirmed })
+      .eq('id', itemId)
+      .select()
+      .single()
+
+    if (err || !data) return
+
+    const updated = items.map(i => (i.id === itemId ? (data as CardChargeItem) : i))
+    setItems(updated)
+    await syncCardCharges(selectedCardId, billingYearMonth, updated)
+    refreshButtonTotal(updated)
   }
 
   async function handleAdd(e: React.FormEvent) {
@@ -162,6 +185,7 @@ export default function ChargesPage() {
         billing_year_month: billingYearMonth,
         description: newDescription.trim(),
         amount: Number(newAmount),
+        is_confirmed: true,
       })
       .select()
       .single()
@@ -174,9 +198,8 @@ export default function ChargesPage() {
 
     const updated = [...items, data as CardChargeItem]
     setItems(updated)
-    const newTotal = updated.reduce((sum, i) => sum + i.amount, 0)
     await syncCardCharges(selectedCardId, billingYearMonth, updated)
-    updateTotalInButtons(selectedUsageYearMonth, newTotal)
+    refreshButtonTotal(updated)
     setNewDescription('')
     setNewAmount('')
   }
@@ -199,9 +222,8 @@ export default function ChargesPage() {
 
     const updated = items.map(i => (i.id === itemId ? (data as CardChargeItem) : i))
     setItems(updated)
-    const newTotal = updated.reduce((sum, i) => sum + i.amount, 0)
     await syncCardCharges(selectedCardId, billingYearMonth, updated)
-    updateTotalInButtons(selectedUsageYearMonth, newTotal)
+    refreshButtonTotal(updated)
     setEditingItemId(null)
   }
 
@@ -209,9 +231,8 @@ export default function ChargesPage() {
     await supabase.from('card_charge_items').delete().eq('id', itemId)
     const updated = items.filter(i => i.id !== itemId)
     setItems(updated)
-    const newTotal = updated.reduce((sum, i) => sum + i.amount, 0)
     await syncCardCharges(selectedCardId, billingYearMonth, updated)
-    updateTotalInButtons(selectedUsageYearMonth, newTotal)
+    refreshButtonTotal(updated)
   }
 
   function startEdit(item: CardChargeItem) {
@@ -226,7 +247,6 @@ export default function ChargesPage() {
     setSelectedUsageYearMonth(getMonthByOffset(next).value)
   }
 
-  const total = items.reduce((sum, i) => sum + i.amount, 0)
   const selectedCard = cards.find(c => c.id === selectedCardId)
   const selectedMonthLabel =
     visibleMonths.find(m => m.value === selectedUsageYearMonth)?.label ?? selectedUsageYearMonth
@@ -244,7 +264,6 @@ export default function ChargesPage() {
           {/* カード・月選択 */}
           <div className="bg-white rounded-xl border p-6">
             <div className="flex flex-wrap gap-6 items-start">
-              {/* カード選択 */}
               <div>
                 <label className="block text-sm font-medium mb-1 text-gray-600">カード</label>
                 <select
@@ -258,7 +277,6 @@ export default function ChargesPage() {
                 </select>
               </div>
 
-              {/* 月選択スライダー */}
               <div>
                 <label className="block text-sm font-medium mb-2 text-gray-600">利用月</label>
                 <div className="flex items-center gap-1">
@@ -317,6 +335,7 @@ export default function ChargesPage() {
               <table className="w-full text-sm mb-5 border-collapse">
                 <thead>
                   <tr className="border-b border-gray-200 text-gray-500">
+                    <th className="w-8 py-2"></th>
                     <th className="text-left py-2 font-medium">コメント</th>
                     <th className="text-right py-2 font-medium pr-4">金額</th>
                     <th className="w-28"></th>
@@ -326,6 +345,7 @@ export default function ChargesPage() {
                   {items.map(item =>
                     editingItemId === item.id ? (
                       <tr key={item.id} className="border-b border-blue-100 bg-blue-50">
+                        <td className="py-2 pl-1"></td>
                         <td className="py-2 pr-2">
                           <input
                             type="text"
@@ -359,15 +379,32 @@ export default function ChargesPage() {
                         </td>
                       </tr>
                     ) : (
-                      <tr key={item.id} className="border-b border-gray-100 hover:bg-gray-50">
-                        <td className="py-2 text-gray-700">{item.description}</td>
-                        <td className="py-2 text-right pr-4 text-gray-700">
+                      <tr
+                        key={item.id}
+                        className={`border-b transition-colors ${
+                          item.is_confirmed
+                            ? 'bg-blue-50 hover:bg-blue-100'
+                            : 'bg-white hover:bg-gray-50'
+                        }`}
+                      >
+                        <td className="py-2 pl-1 text-center">
+                          <input
+                            type="checkbox"
+                            checked={item.is_confirmed}
+                            onChange={() => handleToggleConfirmed(item.id)}
+                            className="w-4 h-4 accent-blue-600 cursor-pointer"
+                          />
+                        </td>
+                        <td className={`py-2 ${item.is_confirmed ? 'text-blue-700' : 'text-gray-400'}`}>
+                          {item.description}
+                        </td>
+                        <td className={`py-2 text-right pr-4 ${item.is_confirmed ? 'text-blue-700 font-medium' : 'text-gray-400'}`}>
                           {formatCurrency(item.amount)}
                         </td>
                         <td className="py-2 text-center whitespace-nowrap">
                           <button
                             onClick={() => startEdit(item)}
-                            className="text-blue-400 hover:text-blue-600 text-xs px-2 py-1 rounded hover:bg-blue-50 transition-colors"
+                            className="text-blue-400 hover:text-blue-600 text-xs px-2 py-1 rounded hover:bg-blue-100 transition-colors"
                           >
                             修正
                           </button>
@@ -384,9 +421,10 @@ export default function ChargesPage() {
                 </tbody>
                 <tfoot>
                   <tr className="border-t-2 border-gray-300">
-                    <td className="py-3 font-bold text-gray-700">合計</td>
+                    <td></td>
+                    <td className="py-3 font-bold text-gray-700">確認済み合計</td>
                     <td className="py-3 text-right pr-4 font-bold text-blue-600 text-base">
-                      {formatCurrency(total)}
+                      {formatCurrency(confirmedTotal)}
                     </td>
                     <td></td>
                   </tr>

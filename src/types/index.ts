@@ -43,6 +43,7 @@ export interface CardChargeItem {
   billing_year_month: string
   description: string
   amount: number
+  is_confirmed: boolean
   created_at: string
 }
 
