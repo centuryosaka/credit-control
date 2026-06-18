@@ -4,17 +4,26 @@ import { useAuth } from '@/contexts/AuthContext'
 import { CreditCard, CardChargeItem } from '@/types'
 import { formatCurrency } from '@/lib/utils'
 
-function generateMonthOptions() {
+function generateUsageMonthOptions() {
   const options: { value: string; label: string }[] = []
   const today = new Date()
   for (let i = -3; i <= 6; i++) {
     const d = new Date(today.getFullYear(), today.getMonth() + i, 1)
     const year = d.getFullYear()
     const month = d.getMonth() + 1
-    const value = `${year}-${String(month).padStart(2, '0')}`
-    options.push({ value, label: `${year}年${month}月` })
+    options.push({
+      value: `${year}-${String(month).padStart(2, '0')}`,
+      label: `${year}年${month}月`,
+    })
   }
   return options
+}
+
+function usageToBillingYearMonth(usageYearMonth: string): string {
+  const [y, m] = usageYearMonth.split('-').map(Number)
+  // new Date(y, m, 1): month引数はゼロ始まりなので m（1始まり）を渡すと翌月になる
+  const d = new Date(y, m, 1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
 function getPeriodLabel(card: CreditCard, billingYearMonth: string): string {
@@ -42,25 +51,33 @@ export default function ChargesPage() {
   const [cards, setCards] = useState<CreditCard[]>([])
   const [items, setItems] = useState<CardChargeItem[]>([])
   const [selectedCardId, setSelectedCardId] = useState('')
-  const [selectedYearMonth, setSelectedYearMonth] = useState('')
+  const [selectedUsageYearMonth, setSelectedUsageYearMonth] = useState('')
   const [newDescription, setNewDescription] = useState('')
   const [newAmount, setNewAmount] = useState('')
   const [adding, setAdding] = useState(false)
+  const [editingItemId, setEditingItemId] = useState<string | null>(null)
+  const [editDescription, setEditDescription] = useState('')
+  const [editAmount, setEditAmount] = useState('')
   const [error, setError] = useState<string | null>(null)
 
-  const monthOptions = useMemo(() => generateMonthOptions(), [])
+  const monthOptions = useMemo(() => generateUsageMonthOptions(), [])
+
+  const billingYearMonth = useMemo(
+    () => (selectedUsageYearMonth ? usageToBillingYearMonth(selectedUsageYearMonth) : ''),
+    [selectedUsageYearMonth],
+  )
 
   useEffect(() => {
     const today = new Date()
-    setSelectedYearMonth(
+    setSelectedUsageYearMonth(
       `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`,
     )
     if (user) loadCards()
   }, [user])
 
   useEffect(() => {
-    if (selectedCardId && selectedYearMonth) loadItems()
-  }, [selectedCardId, selectedYearMonth])
+    if (selectedCardId && billingYearMonth) loadItems()
+  }, [selectedCardId, billingYearMonth])
 
   async function loadCards() {
     const { data } = await supabase.from('credit_cards').select('*').order('created_at')
@@ -74,19 +91,19 @@ export default function ChargesPage() {
       .from('card_charge_items')
       .select('*')
       .eq('credit_card_id', selectedCardId)
-      .eq('billing_year_month', selectedYearMonth)
+      .eq('billing_year_month', billingYearMonth)
       .order('created_at')
     setItems((data ?? []) as CardChargeItem[])
   }
 
-  async function syncCardCharges(creditCardId: string, billingYearMonth: string, latestItems: CardChargeItem[]) {
+  async function syncCardCharges(creditCardId: string, bym: string, latestItems: CardChargeItem[]) {
     const total = latestItems.reduce((sum, i) => sum + i.amount, 0)
 
     const { data: existing } = await supabase
       .from('card_charges')
       .select('id')
       .eq('credit_card_id', creditCardId)
-      .eq('billing_year_month', billingYearMonth)
+      .eq('billing_year_month', bym)
       .maybeSingle()
 
     if (total === 0) {
@@ -97,7 +114,7 @@ export default function ChargesPage() {
       await supabase.from('card_charges').insert({
         user_id: user!.id,
         credit_card_id: creditCardId,
-        billing_year_month: billingYearMonth,
+        billing_year_month: bym,
         amount: total,
         is_debited: false,
       })
@@ -115,7 +132,7 @@ export default function ChargesPage() {
       .insert({
         user_id: user!.id,
         credit_card_id: selectedCardId,
-        billing_year_month: selectedYearMonth,
+        billing_year_month: billingYearMonth,
         description: newDescription.trim(),
         amount: Number(newAmount),
       })
@@ -130,21 +147,49 @@ export default function ChargesPage() {
 
     const updated = [...items, data as CardChargeItem]
     setItems(updated)
-    await syncCardCharges(selectedCardId, selectedYearMonth, updated)
+    await syncCardCharges(selectedCardId, billingYearMonth, updated)
     setNewDescription('')
     setNewAmount('')
+  }
+
+  async function handleEdit(itemId: string) {
+    if (!editDescription.trim() || !editAmount) return
+    setError(null)
+
+    const { data, error: err } = await supabase
+      .from('card_charge_items')
+      .update({ description: editDescription.trim(), amount: Number(editAmount) })
+      .eq('id', itemId)
+      .select()
+      .single()
+
+    if (err || !data) {
+      setError('更新に失敗しました。')
+      return
+    }
+
+    const updated = items.map(i => (i.id === itemId ? (data as CardChargeItem) : i))
+    setItems(updated)
+    await syncCardCharges(selectedCardId, billingYearMonth, updated)
+    setEditingItemId(null)
   }
 
   async function handleDelete(itemId: string) {
     await supabase.from('card_charge_items').delete().eq('id', itemId)
     const updated = items.filter(i => i.id !== itemId)
     setItems(updated)
-    await syncCardCharges(selectedCardId, selectedYearMonth, updated)
+    await syncCardCharges(selectedCardId, billingYearMonth, updated)
+  }
+
+  function startEdit(item: CardChargeItem) {
+    setEditingItemId(item.id)
+    setEditDescription(item.description)
+    setEditAmount(String(item.amount))
   }
 
   const total = items.reduce((sum, i) => sum + i.amount, 0)
   const selectedCard = cards.find(c => c.id === selectedCardId)
-  const selectedMonthLabel = monthOptions.find(o => o.value === selectedYearMonth)?.label ?? ''
+  const selectedUsageMonthLabel = monthOptions.find(o => o.value === selectedUsageYearMonth)?.label ?? ''
 
   return (
     <div className="space-y-6">
@@ -172,10 +217,10 @@ export default function ChargesPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1 text-gray-600">引き落とし年月</label>
+                <label className="block text-sm font-medium mb-1 text-gray-600">利用月</label>
                 <select
-                  value={selectedYearMonth}
-                  onChange={e => setSelectedYearMonth(e.target.value)}
+                  value={selectedUsageYearMonth}
+                  onChange={e => setSelectedUsageYearMonth(e.target.value)}
                   className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
                 >
                   {monthOptions.map(o => (
@@ -184,9 +229,9 @@ export default function ChargesPage() {
                 </select>
               </div>
             </div>
-            {selectedCard && selectedYearMonth && (
+            {selectedCard && billingYearMonth && (
               <p className="mt-3 text-xs text-gray-400">
-                {getPeriodLabel(selectedCard, selectedYearMonth)}
+                {getPeriodLabel(selectedCard, billingYearMonth)}
               </p>
             )}
           </div>
@@ -194,7 +239,7 @@ export default function ChargesPage() {
           {/* 明細一覧 + 入力フォーム */}
           <div className="bg-white rounded-xl border p-6">
             <h2 className="text-base font-semibold mb-4 text-gray-700">
-              {selectedCard?.name}　／　{selectedMonthLabel} 利用明細
+              {selectedCard?.name}　／　{selectedUsageMonthLabel} 利用明細
             </h2>
 
             {items.length > 0 ? (
@@ -203,26 +248,68 @@ export default function ChargesPage() {
                   <tr className="border-b border-gray-200 text-gray-500">
                     <th className="text-left py-2 font-medium">コメント</th>
                     <th className="text-right py-2 font-medium pr-4">金額</th>
-                    <th className="w-12"></th>
+                    <th className="w-28"></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {items.map(item => (
-                    <tr key={item.id} className="border-b border-gray-100 hover:bg-gray-50">
-                      <td className="py-2 text-gray-700">{item.description}</td>
-                      <td className="py-2 text-right pr-4 text-gray-700">
-                        {formatCurrency(item.amount)}
-                      </td>
-                      <td className="py-2 text-center">
-                        <button
-                          onClick={() => handleDelete(item.id)}
-                          className="text-red-400 hover:text-red-600 text-xs px-2 py-1 rounded hover:bg-red-50 transition-colors"
-                        >
-                          削除
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {items.map(item =>
+                    editingItemId === item.id ? (
+                      <tr key={item.id} className="border-b border-blue-100 bg-blue-50">
+                        <td className="py-2 pr-2">
+                          <input
+                            type="text"
+                            value={editDescription}
+                            onChange={e => setEditDescription(e.target.value)}
+                            className="border rounded px-2 py-1 w-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                          />
+                        </td>
+                        <td className="py-2 pr-4">
+                          <input
+                            type="number"
+                            value={editAmount}
+                            onChange={e => setEditAmount(e.target.value)}
+                            min={1}
+                            className="border rounded px-2 py-1 w-full text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-400"
+                          />
+                        </td>
+                        <td className="py-2 text-center whitespace-nowrap">
+                          <button
+                            onClick={() => handleEdit(item.id)}
+                            className="text-blue-600 hover:text-blue-800 text-xs px-2 py-1 rounded hover:bg-blue-100 transition-colors"
+                          >
+                            保存
+                          </button>
+                          <button
+                            onClick={() => setEditingItemId(null)}
+                            className="text-gray-400 hover:text-gray-600 text-xs px-2 py-1 rounded hover:bg-gray-100 transition-colors ml-1"
+                          >
+                            取消
+                          </button>
+                        </td>
+                      </tr>
+                    ) : (
+                      <tr key={item.id} className="border-b border-gray-100 hover:bg-gray-50">
+                        <td className="py-2 text-gray-700">{item.description}</td>
+                        <td className="py-2 text-right pr-4 text-gray-700">
+                          {formatCurrency(item.amount)}
+                        </td>
+                        <td className="py-2 text-center whitespace-nowrap">
+                          <button
+                            onClick={() => startEdit(item)}
+                            className="text-blue-400 hover:text-blue-600 text-xs px-2 py-1 rounded hover:bg-blue-50 transition-colors"
+                          >
+                            修正
+                          </button>
+                          <button
+                            onClick={() => handleDelete(item.id)}
+                            className="text-red-400 hover:text-red-600 text-xs px-2 py-1 rounded hover:bg-red-50 transition-colors ml-1"
+                          >
+                            削除
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  )}
                 </tbody>
                 <tfoot>
                   <tr className="border-t-2 border-gray-300">
