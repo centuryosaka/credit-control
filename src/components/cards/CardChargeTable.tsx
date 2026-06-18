@@ -24,7 +24,7 @@ export default function CardChargeTable({ cards, charges }: Props) {
           {charges.length === 0 && (
             <tr>
               <td colSpan={4} className="px-4 py-8 text-center text-gray-400">
-                データがありません。Excelからインポートしてください。
+                データがありません。使用額入力から入力してください。
               </td>
             </tr>
           )}
@@ -37,7 +37,7 @@ export default function CardChargeTable({ cards, charges }: Props) {
                 {cardMap[charge.credit_card_id]?.name ?? '－'}
               </td>
               <td className="px-4 py-2 border border-gray-200">
-                {charge.billing_year_month.slice(0, 7)}
+                {charge.billing_year_month}
               </td>
               <td className="px-4 py-2 border border-gray-200 text-right">
                 {formatCurrency(charge.amount)}
