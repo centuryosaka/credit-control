@@ -13,8 +13,8 @@ export default function Navbar() {
   const { user, signOut } = useAuth()
 
   return (
-    <nav className="bg-blue-700 text-white px-6 py-3 flex items-center gap-6">
-      <span className="font-bold text-lg mr-2">Credit Control</span>
+    <nav className="bg-blue-700 text-white px-3 sm:px-6 py-3 flex flex-wrap items-center gap-3 sm:gap-6">
+      <span className="font-bold text-base sm:text-lg mr-1 sm:mr-2">Credit Control</span>
 
       {NAV_LINKS.map(({ href, label }) => (
         <Link

@@ -256,14 +256,14 @@ export default function ChargesPage() {
       <h1 className="text-2xl font-bold text-gray-800">カード使用額入力</h1>
 
       {cards.length === 0 ? (
-        <div className="bg-white rounded-xl border p-6 text-gray-500 text-sm">
+        <div className="bg-white rounded-xl border p-4 sm:p-6 text-gray-500 text-sm">
           先にカード管理画面でカードを登録してください。
         </div>
       ) : (
         <>
           {/* カード・月選択 */}
-          <div className="bg-white rounded-xl border p-6">
-            <div className="flex flex-wrap gap-6 items-start">
+          <div className="bg-white rounded-xl border p-4 sm:p-6">
+            <div className="flex flex-wrap gap-4 sm:gap-6 items-start">
               <div>
                 <label className="block text-sm font-medium mb-1 text-gray-600">カード</label>
                 <select
@@ -277,13 +277,13 @@ export default function ChargesPage() {
                 </select>
               </div>
 
-              <div>
+              <div className="min-w-0 max-w-full">
                 <label className="block text-sm font-medium mb-2 text-gray-600">利用月</label>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 max-w-full overflow-x-auto pb-1">
                   <button
                     onClick={() => shiftWindow(-1)}
                     disabled={windowOffset <= WINDOW_MIN}
-                    className="w-8 h-14 flex items-center justify-center rounded-lg border text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-lg"
+                    className="shrink-0 w-7 sm:w-8 h-12 sm:h-14 flex items-center justify-center rounded-lg border text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-lg"
                   >
                     ‹
                   </button>
@@ -294,14 +294,14 @@ export default function ChargesPage() {
                       <button
                         key={m.value}
                         onClick={() => setSelectedUsageYearMonth(m.value)}
-                        className={`flex flex-col items-center px-4 py-2 rounded-lg border text-sm font-medium transition-colors whitespace-nowrap min-w-[100px] h-14 justify-center ${
+                        className={`shrink-0 flex flex-col items-center px-2 sm:px-4 py-2 rounded-lg border text-xs sm:text-sm font-medium transition-colors whitespace-nowrap min-w-[76px] sm:min-w-[100px] h-12 sm:h-14 justify-center ${
                           isSelected
                             ? 'bg-blue-600 text-white border-blue-600'
                             : 'text-gray-600 hover:bg-gray-100 border-gray-300'
                         }`}
                       >
                         <span>{m.label}</span>
-                        <span className={`text-xs mt-0.5 font-normal ${isSelected ? 'text-blue-100' : 'text-gray-400'}`}>
+                        <span className={`text-[10px] sm:text-xs mt-0.5 font-normal ${isSelected ? 'text-blue-100' : 'text-gray-400'}`}>
                           {total > 0 ? formatCurrency(total) : '―'}
                         </span>
                       </button>
@@ -310,7 +310,7 @@ export default function ChargesPage() {
                   <button
                     onClick={() => shiftWindow(1)}
                     disabled={windowOffset >= WINDOW_MAX}
-                    className="w-8 h-14 flex items-center justify-center rounded-lg border text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-lg"
+                    className="shrink-0 w-7 sm:w-8 h-12 sm:h-14 flex items-center justify-center rounded-lg border text-gray-500 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-lg"
                   >
                     ›
                   </button>
@@ -326,7 +326,7 @@ export default function ChargesPage() {
           </div>
 
           {/* 明細一覧 + 入力フォーム */}
-          <div className="bg-white rounded-xl border p-6">
+          <div className="bg-white rounded-xl border p-4 sm:p-6">
             <h2 className="text-base font-semibold mb-4 text-gray-700">
               {selectedCard?.name}　／　{selectedMonthLabel} 利用明細
             </h2>
