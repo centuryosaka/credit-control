@@ -2,7 +2,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 
 const NAV_LINKS = [
-  { href: '/', label: 'ダッシュボード' },
+  { href: '/', label: 'ホーム' },
   { href: '/bank', label: '銀行口座' },
   { href: '/cards', label: 'カード管理' },
   { href: '/charges', label: '使用額入力' },
