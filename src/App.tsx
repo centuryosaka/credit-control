@@ -7,6 +7,8 @@ import DashboardPage from '@/pages/DashboardPage'
 import BankPage from '@/pages/BankPage'
 import CardsPage from '@/pages/CardsPage'
 import ChargesPage from '@/pages/ChargesPage'
+import PrivacyPolicyPage from '@/pages/PrivacyPolicyPage'
+import TermsPage from '@/pages/TermsPage'
 
 export default function App() {
   return (
@@ -15,6 +17,10 @@ export default function App() {
         <Routes>
           {/* 未ログイン時のログイン画面 */}
           <Route path="/login" element={<LoginPage />} />
+
+          {/* OAuth連携先（Yahoo!等）に提示する公開ページ */}
+          <Route path="/privacy" element={<PrivacyPolicyPage />} />
+          <Route path="/terms" element={<TermsPage />} />
 
           {/* 認証済みページ（未ログインはログイン画面にリダイレクト） */}
           <Route
