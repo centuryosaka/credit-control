@@ -1,6 +1,15 @@
 import { createContext, useContext, useEffect, useState } from 'react'
-import { Session, User } from '@supabase/supabase-js'
+import { Provider, Session, User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
+
+export type OAuthProvider = 'google' | 'yahoojp'
+
+// SupabaseのProvider型は組み込みプロバイダーのみを列挙しているため、
+// カスタムOIDCプロバイダー（custom:プレフィックス）はキャストして渡す
+const OAUTH_PROVIDER_MAP: Record<OAuthProvider, Provider> = {
+  google: 'google',
+  yahoojp: 'custom:yahoojp' as Provider,
+}
 
 interface AuthContextType {
   session: Session | null
@@ -8,6 +17,7 @@ interface AuthContextType {
   loading: boolean
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>
   signUp: (email: string, password: string) => Promise<{ error: Error | null }>
+  signInWithOAuth: (provider: OAuthProvider) => Promise<{ error: Error | null }>
   signOut: () => Promise<void>
 }
 
@@ -42,12 +52,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error }
   }
 
+  async function signInWithOAuth(provider: OAuthProvider) {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: OAUTH_PROVIDER_MAP[provider],
+      options: { redirectTo: window.location.origin },
+    })
+    return { error }
+  }
+
   async function signOut() {
     await supabase.auth.signOut()
   }
 
   return (
-    <AuthContext.Provider value={{ session, user: session?.user ?? null, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider
+      value={{ session, user: session?.user ?? null, loading, signIn, signUp, signInWithOAuth, signOut }}
+    >
       {children}
     </AuthContext.Provider>
   )
